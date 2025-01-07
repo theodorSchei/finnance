@@ -39,12 +39,18 @@ function updatePriceGrid() {
   const monthlyFeesElement = document.querySelector(
     '[data-testid="pricing-common-monthly-cost"] dd',
   );
+  const municipalFeesElement = document.querySelector(
+    '[data-testid="pricing-municipal-fees"] dd',
+  );
 
-  if (!totalPriceElement || !monthlyFeesElement) return;
+  if (!totalPriceElement || (!monthlyFeesElement && !municipalFeesElement))
+    return;
 
   const totalPrice = parsePriceString(totalPriceElement.textContent);
   const totalPriceMinusEquity = totalPrice - userSettings.equity;
-  const monthlyFees = parsePriceString(monthlyFeesElement.textContent);
+  const monthlyFees = monthlyFeesElement
+    ? parsePriceString(monthlyFeesElement.textContent)
+    : parsePriceString(municipalFeesElement.textContent) / 12;
 
   const monthlyLoanPayment =
     ((totalPriceMinusEquity / 12) * userSettings.interestRate) / 100;
@@ -62,7 +68,7 @@ function updatePriceGrid() {
         Månedlig lånebetaling: ${formatPrice(totalPriceMinusEquity)} ÷ 12 × ${userSettings.interestRate.toFixed(2)}% = ${formatPrice(Math.round(monthlyLoanPayment))}\n
         Månedlig rentefradrag: ${formatPrice(Math.round(monthlyLoanPayment))} × ${userSettings.interestTax.toFixed(2)}% = ${formatPrice(Math.round(monthlyInterestTax))}\n
         Total månedlig kostnad: ${formatPrice(Math.round(monthlyLoanPayment))} - ${Math.round(monthlyInterestTax)} + ${formatPrice(monthlyFees)} = ${formatPrice(Math.round(totalMonthlyPayment))}\n
-        Forklaring: Total månedlig kostnad inkluderer lånebetaling og felleskostnader, og trekker fra skattefradrag.`;
+        Forklaring: Total månedlig kostnad inkluderer lånebetaling og felleskostnader/kommunale avgifter, og trekker fra skattefradrag.`;
 
   const salaryCalcText = `Lønn og gjenværende beløp:\n
         Månedlig bruttolønn: ${formatPrice(userSettings.yearlySalary)} ÷ 12 = ${formatPrice(Math.round(monthlyGrossSalary))}\n
@@ -76,6 +82,8 @@ function updatePriceGrid() {
   let remainingSalaryDiv = document.querySelector(
     '[data-testid="remaining-salary"]',
   );
+
+  console.log("[Finnance] Updating price grid...");
 
   if (!monthlyPaymentDiv) {
     monthlyPaymentDiv = document.createElement("div");
@@ -91,7 +99,7 @@ function updatePriceGrid() {
     });
 
     monthlyPaymentDiv.innerHTML = `
-            <dt class="m-0">Månedlig kostnad (avdragsfritt)</dt>
+            <dt class="m-0">Månedlig kostnad (uten avdrag)</dt>
             <dd class="m-0 font-bold">${formatPrice(Math.round(totalMonthlyPayment))}</dd>
         `;
     monthlyPaymentDiv.appendChild(monthlyTooltip);

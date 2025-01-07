@@ -81,7 +81,7 @@ document.getElementById("saveSettings").addEventListener("click", async () => {
         });
       }
     } catch (error) {
-      console.log("Tab update not needed - might not be on Finn.no");
+      console.log("[Finnance] Tab update not needed - might not be on Finn.no");
     }
     showStatus("Endringer lagret!");
   } catch (error) {
