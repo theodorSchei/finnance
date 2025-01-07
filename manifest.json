@@ -1,0 +1,17 @@
+{
+  "manifest_version": 2,
+  "name": "finnance",
+  "version": "1.0",
+  "description": "Adds extra info to finn.no realestate listings",
+  "permissions": ["storage", "activeTab"],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "Finn Economy Calculator"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.finn.no/realestate/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
