@@ -1,6 +1,108 @@
 // Store user settings
 let userSettings = null;
 
+function checkAndUpdatePriceGrid(forceUpdate = false) {
+  const totalPriceElement = document.querySelector(
+    '[data-testid="pricing-total-price"] dd',
+  );
+  const monthlyFeesElement = document.querySelector(
+    '[data-testid="pricing-common-monthly-cost"] dd',
+  );
+  const municipalFeesElement = document.querySelector(
+    '[data-testid="pricing-municipal-fees"] dd',
+  );
+  const priceGrid = document.querySelector("dl.grid");
+
+  if (
+    !priceGrid ||
+    !totalPriceElement ||
+    !(monthlyFeesElement || municipalFeesElement)
+  ) {
+    return false;
+  }
+
+  const existingMonthly = document.querySelector(
+    '[data-testid="monthly-payment"]',
+  );
+  const existingRemaining = document.querySelector(
+    '[data-testid="remaining-salary"]',
+  );
+
+  // Update if elements are missing OR if we're forcing an update
+  if (!existingMonthly || !existingRemaining || forceUpdate) {
+    console.log(
+      forceUpdate
+        ? "[Finnance] Force updating price grid"
+        : "[Finnance] Updating missing price grid elements",
+    );
+    updatePriceGrid();
+  }
+
+  return true;
+}
+
+// Initialize when settings are loaded
+browser.storage.local.get("userSettings").then((result) => {
+  if (result.userSettings) {
+    userSettings = result.userSettings;
+    console.log("[Finnance] Loaded initial settings:", userSettings);
+
+    if (checkAndUpdatePriceGrid(true)) {
+      // Force update on initial load
+      setupPriceGridObserver();
+    } else {
+      startPolling();
+    }
+  }
+});
+
+function startPolling() {
+  console.log("[Finnance] Starting to poll for initial elements...");
+  const pollInterval = setInterval(() => {
+    if (checkAndUpdatePriceGrid(true)) {
+      // Force update when found during polling
+      console.log("[Finnance] Initial elements found, setting up observer");
+      clearInterval(pollInterval);
+      setupPriceGridObserver();
+    }
+  }, 100);
+
+  setTimeout(() => {
+    clearInterval(pollInterval);
+  }, 10000);
+}
+
+function setupPriceGridObserver() {
+  const priceGrid = document.querySelector("dl.grid");
+  if (!priceGrid) return;
+
+  console.log("[Finnance] Setting up mutation observer for price grid");
+
+  const observer = new MutationObserver((mutations) => {
+    requestAnimationFrame(() => {
+      if (userSettings) {
+        checkAndUpdatePriceGrid(false); // Don't force update for DOM changes
+      }
+    });
+  });
+
+  observer.observe(priceGrid, {
+    childList: true,
+    subtree: true,
+    characterData: false,
+    attributes: false,
+  });
+}
+
+// Listen for settings updates
+browser.runtime.onMessage.addListener((message) => {
+  if (message.type === "SETTINGS_UPDATED") {
+    userSettings = message.settings;
+    console.log("[Finnance] Received new settings:", userSettings);
+    checkAndUpdatePriceGrid(true); // Force update when settings change
+  }
+});
+
 function parsePriceString(priceStr) {
   return parseInt(priceStr.replace(/[^0-9]/g, "")) || 0;
 }
@@ -43,8 +145,10 @@ function updatePriceGrid() {
     '[data-testid="pricing-municipal-fees"] dd',
   );
 
-  if (!totalPriceElement || (!monthlyFeesElement && !municipalFeesElement))
+  if (!totalPriceElement || (!monthlyFeesElement && !municipalFeesElement)) {
+    console.log("[Finnance] Missing price elements, can't update grid");
     return;
+  }
 
   const totalPrice = parsePriceString(totalPriceElement.textContent);
   const totalPriceMinusEquity = totalPrice - userSettings.equity;
@@ -76,101 +180,61 @@ function updatePriceGrid() {
         Gjenværende beløp etter betalinger: ${formatPrice(Math.round(monthlyNetSalary))} - ${formatPrice(Math.round(totalMonthlyPayment))} = ${formatPrice(Math.round(remainingSalary))}\n
         Forklaring: Gjenværende beløp viser hvor mye som er igjen etter månedlige kostnader.`;
 
+  console.log("[Finnance] Updating price grid...");
+
+  // Get or create monthly payment div
   let monthlyPaymentDiv = document.querySelector(
     '[data-testid="monthly-payment"]',
   );
-  let remainingSalaryDiv = document.querySelector(
-    '[data-testid="remaining-salary"]',
-  );
-
-  console.log("[Finnance] Updating price grid...");
-
   if (!monthlyPaymentDiv) {
+    // Create new element if it doesn't exist
     monthlyPaymentDiv = document.createElement("div");
     monthlyPaymentDiv.setAttribute("data-testid", "monthly-payment");
     const monthlyTooltip = createTooltip(monthlyCalcText);
     monthlyPaymentDiv.appendChild(monthlyTooltip);
-
     monthlyPaymentDiv.addEventListener("mouseenter", () => {
       monthlyTooltip.style.display = "block";
     });
     monthlyPaymentDiv.addEventListener("mouseleave", () => {
       monthlyTooltip.style.display = "none";
     });
-
-    monthlyPaymentDiv.innerHTML = `
-            <dt class="m-0">Månedlig kostnad (uten avdrag)</dt>
-            <dd class="m-0 font-bold">${formatPrice(Math.round(totalMonthlyPayment))}</dd>
-        `;
-    monthlyPaymentDiv.appendChild(monthlyTooltip);
     priceGrid.appendChild(monthlyPaymentDiv);
   }
 
+  // Always update content
+  monthlyPaymentDiv.innerHTML = `
+        <dt class="m-0">Månedlig kostnad (uten avdrag)</dt>
+        <dd class="m-0 font-bold">${formatPrice(Math.round(totalMonthlyPayment))}</dd>
+    `;
+  // Re-add tooltip after innerHTML update
+  const monthlyTooltip = createTooltip(monthlyCalcText);
+  monthlyPaymentDiv.appendChild(monthlyTooltip);
+
+  // Get or create remaining salary div
+  let remainingSalaryDiv = document.querySelector(
+    '[data-testid="remaining-salary"]',
+  );
   if (!remainingSalaryDiv) {
+    // Create new element if it doesn't exist
     remainingSalaryDiv = document.createElement("div");
     remainingSalaryDiv.setAttribute("data-testid", "remaining-salary");
     const salaryTooltip = createTooltip(salaryCalcText);
     remainingSalaryDiv.appendChild(salaryTooltip);
-
     remainingSalaryDiv.addEventListener("mouseenter", () => {
       salaryTooltip.style.display = "block";
     });
     remainingSalaryDiv.addEventListener("mouseleave", () => {
       salaryTooltip.style.display = "none";
     });
-
-    remainingSalaryDiv.innerHTML = `
-            <dt class="m-0">Gjenværende lønn/mnd</dt>
-            <dd class="m-0 font-bold">${formatPrice(Math.round(remainingSalary))}</dd>
-        `;
-    remainingSalaryDiv.appendChild(salaryTooltip);
     priceGrid.appendChild(remainingSalaryDiv);
   }
-}
 
-let updateTimeout = null;
-
-// Debounce function
-function debounce(func, wait) {
-  return (...args) => {
-    clearTimeout(updateTimeout);
-    updateTimeout = setTimeout(() => func(...args), wait);
-  };
-}
-
-// Debounced version of updatePriceGrid
-const debouncedUpdate = debounce(updatePriceGrid, 250);
-
-// Initialize
-browser.storage.local.get("userSettings").then((result) => {
-  if (result.userSettings) {
-    userSettings = result.userSettings;
-    debouncedUpdate();
-  }
-});
-
-// Listen for settings updates
-browser.runtime.onMessage.addListener((message) => {
-  if (message.type === "SETTINGS_UPDATED") {
-    userSettings = message.settings;
-    debouncedUpdate();
-  }
-});
-
-// Optimized observer
-const observer = new MutationObserver(debouncedUpdate);
-
-// Start observing only after DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-  });
-} else {
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+  // Always update content
+  remainingSalaryDiv.innerHTML = `
+        <dt class="m-0">Gjenværende lønn/mnd</dt>
+        <dd class="m-0 font-bold">${formatPrice(Math.round(remainingSalary))}</dd>
+    `;
+  // Re-add tooltip after innerHTML update
+  const salaryTooltip = createTooltip(salaryCalcText);
+  remainingSalaryDiv.appendChild(salaryTooltip);
 }
