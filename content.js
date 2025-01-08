@@ -210,6 +210,13 @@ function updatePriceGrid() {
   const monthlyTooltip = createTooltip(monthlyCalcText);
   monthlyPaymentDiv.appendChild(monthlyTooltip);
 
+  monthlyPaymentDiv.addEventListener("mouseenter", () => {
+    monthlyTooltip.style.display = "block";
+  });
+  monthlyPaymentDiv.addEventListener("mouseleave", () => {
+    monthlyTooltip.style.display = "none";
+  });
+
   // Get or create remaining salary div
   let remainingSalaryDiv = document.querySelector(
     '[data-testid="remaining-salary"]',
@@ -237,4 +244,10 @@ function updatePriceGrid() {
   // Re-add tooltip after innerHTML update
   const salaryTooltip = createTooltip(salaryCalcText);
   remainingSalaryDiv.appendChild(salaryTooltip);
+  remainingSalaryDiv.addEventListener("mouseenter", () => {
+    salaryTooltip.style.display = "block";
+  });
+  remainingSalaryDiv.addEventListener("mouseleave", () => {
+    salaryTooltip.style.display = "none";
+  });
 }
